@@ -1,0 +1,1442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>爱轮班 - iOS风格排班管理应用</title>
+    <!-- Tailwind CSS v3 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <!-- 统一的 Tailwind 配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#007AFF',
+                        secondary: '#5856D6',
+                        success: '#34C759',
+                        warning: '#FF9500',
+                        danger: '#FF3B30',
+                        info: '#5AC8FA',
+                        light: '#F2F2F7',
+                        dark: '#1C1C1E',
+                        'ios-gray': '#8E8E93',
+                        'ios-light-gray': '#E5E5EA',
+                        'ios-dark-gray': '#3A3A3C',
+                        'ios-background': '#FFFFFF',
+                        'ios-card': '#F2F2F7',
+                    },
+                    fontFamily: {
+                        sans: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'ios': '0 2px 10px rgba(0, 0, 0, 0.05)',
+                        'ios-elevated': '0 4px 20px rgba(0, 0, 0, 0.1)',
+                    },
+                    borderRadius: {
+                        'ios': '10px',
+                        'ios-lg': '16px',
+                        'ios-full': '9999px',
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.3s ease-in-out',
+                        'slide-up': 'slideUp 0.3s ease-in-out',
+                        'slide-down': 'slideDown 0.3s ease-in-out',
+                        'slide-left': 'slideLeft 0.3s ease-in-out',
+                        'slide-right': 'slideRight 0.3s ease-in-out',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        },
+                        slideUp: {
+                            '0%': { transform: 'translateY(20px)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' },
+                        },
+                        slideDown: {
+                            '0%': { transform: 'translateY(-20px)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' },
+                        },
+                        slideLeft: {
+                            '0%': { transform: 'translateX(20px)', opacity: '0' },
+                            '100%': { transform: 'translateX(0)', opacity: '1' },
+                        },
+                        slideRight: {
+                            '0%': { transform: 'translateX(-20px)', opacity: '0' },
+                            '100%': { transform: 'translateX(0)', opacity: '1' },
+                        },
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .text-shadow {
+                text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+            }
+            .ios-safe-area {
+                padding-top: env(safe-area-inset-top, 44px);
+                padding-bottom: env(safe-area-inset-bottom, 34px);
+            }
+            .ios-bottom-bar {
+                height: calc(50px + env(safe-area-inset-bottom, 34px));
+                padding-bottom: env(safe-area-inset-bottom, 34px);
+            }
+            .scrollbar-hidden::-webkit-scrollbar {
+                display: none;
+            }
+            .scrollbar-hidden {
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+            }
+            .glass-effect {
+                background: rgba(255, 255, 255, 0.7);
+                backdrop-filter: blur(10px);
+                -webkit-backdrop-filter: blur(10px);
+            }
+            .dark .glass-effect {
+                background: rgba(28, 28, 30, 0.7);
+            }
+        }
+    </style>
+    <style>
+        /* 全局样式 */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            touch-action: manipulation;
+            overscroll-behavior: none;
+        }
+        
+        /* iOS 风格开关 */
+        .ios-switch {
+            position: relative;
+            display: inline-block;
+            width: 51px;
+            height: 31px;
+        }
+        
+        .ios-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .ios-switch-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        
+        .ios-switch-slider:before {
+            position: absolute;
+            content: "";
+            height: 27px;
+            width: 27px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .ios-switch-slider {
+            background-color: #007AFF;
+        }
+        
+        input:checked + .ios-switch-slider:before {
+            transform: translateX(20px);
+        }
+        
+        /* iOS 风格选择器 */
+        .ios-picker {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
+            background-position: right 0.5rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+            padding-right: 2.5rem;
+        }
+        
+        /* iOS 风格按钮 */
+        .ios-button {
+            transition: all 0.2s ease;
+        }
+        
+        .ios-button:active {
+            opacity: 0.7;
+            transform: scale(0.98);
+        }
+        
+        /* iOS 风格卡片 */
+        .ios-card {
+            transition: all 0.3s ease;
+        }
+        
+        .ios-card:active {
+            transform: scale(0.98);
+        }
+        
+        /* 页面切换动画 */
+        .page {
+            display: none;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        
+        .page.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        /* 滑动手势支持 */
+        .swipe-container {
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        .swipe-item {
+            scroll-snap-align: start;
+            flex-shrink: 0;
+        }
+        
+        /* 日历网格样式 */
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+        }
+        
+        /* 班次标签样式 */
+        .shift-tag {
+            padding: 2px 8px;
+            border-radius: 9999px;
+            font-size: 12px;
+            font-weight: 500;
+            display: inline-block;
+            margin-right: 4px;
+        }
+        
+        /* 下拉菜单动画 */
+        .dropdown-menu {
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            pointer-events: none;
+        }
+        
+        .dropdown-menu.show {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+        
+        /* 骨架屏动画 */
+        .skeleton {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: skeleton-loading 1.5s infinite;
+        }
+        
+        @keyframes skeleton-loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+    </style>
+</head>
+<body class="bg-ios-background text-dark dark:bg-dark dark:text-white">
+    <!-- 主容器 -->
+    <div class="flex flex-col h-screen max-h-screen overflow-hidden">
+        <!-- 顶部导航栏 -->
+        <header class="bg-white dark:bg-dark shadow-sm z-10 ios-safe-area">
+            <div class="container mx-auto px-4 py-3 flex items-center justify-between">
+                <div class="flex items-center">
+                    <h1 class="text-xl font-semibold text-primary">爱轮班</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button id="notificationBtn" class="ios-button p-2 text-ios-gray">
+                        <i class="fa fa-bell-o text-lg"></i>
+                    </button>
+                    <button id="settingsBtn" class="ios-button p-2 text-ios-gray">
+                        <i class="fa fa-cog text-lg"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+        
+        <!-- 主内容区域 -->
+        <main class="flex-1 overflow-hidden">
+            <!-- 页面容器 -->
+            <div class="page-container h-full">
+                <!-- 首页/排班表页面 -->
+                <div id="schedulePage" class="page active h-full flex flex-col">
+                    <!-- 视图切换栏 -->
+                    <div class="bg-white dark:bg-dark shadow-sm p-4">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-2">
+                                <button id="viewMonthBtn" class="ios-button px-4 py-2 bg-primary text-white rounded-ios-full">
+                                    月视图
+                                </button>
+                                <button id="viewWeekBtn" class="ios-button px-4 py-2 bg-ios-light-gray dark:bg-ios-dark-gray text-dark dark:text-white rounded-ios-full">
+                                    周视图
+                                </button>
+                                <button id="viewDayBtn" class="ios-button px-4 py-2 bg-ios-light-gray dark:bg-ios-dark-gray text-dark dark:text-white rounded-ios-full">
+                                    日视图
+                                </button>
+                            </div>
+                            <button id="todayBtn" class="ios-button px-3 py-1 bg-ios-light-gray dark:bg-ios-dark-gray text-dark dark:text-white rounded-ios-full text-sm">
+                                今天
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 日期选择器 -->
+                    <div class="bg-white dark:bg-dark p-4 shadow-sm">
+                        <div class="flex items-center justify-between">
+                            <button id="prevMonthBtn" class="ios-button p-2 text-primary">
+                                <i class="fa fa-chevron-left"></i>
+                            </button>
+                            <h2 id="currentDateDisplay" class="text-lg font-medium">2025年7月</h2>
+                            <button id="nextMonthBtn" class="ios-button p-2 text-primary">
+                                <i class="fa fa-chevron-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 日历/排班内容区域 -->
+                    <div class="flex-1 overflow-auto p-4 bg-ios-light-gray dark:bg-dark">
+                        <!-- 月视图 -->
+                        <div id="monthView" class="view-content active">
+                            <!-- 星期标题 -->
+                            <div class="calendar-grid mb-2">
+                                <div class="text-center text-sm text-ios-gray py-2">日</div>
+                                <div class="text-center text-sm text-ios-gray py-2">一</div>
+                                <div class="text-center text-sm text-ios-gray py-2">二</div>
+                                <div class="text-center text-sm text-ios-gray py-2">三</div>
+                                <div class="text-center text-sm text-ios-gray py-2">四</div>
+                                <div class="text-center text-sm text-ios-gray py-2">五</div>
+                                <div class="text-center text-sm text-ios-gray py-2">六</div>
+                            </div>
+                            
+                            <!-- 日历网格 -->
+                            <div id="monthGrid" class="calendar-grid">
+                                <!-- 日历单元格将通过JavaScript动态生成 -->
+                            </div>
+                        </div>
+                        
+                        <!-- 周视图 -->
+                        <div id="weekView" class="view-content hidden">
+                            <div class="bg-white dark:bg-ios-dark-gray rounded-ios p-4 shadow-ios mb-4">
+                                <h3 class="text-lg font-medium mb-4">本周排班</h3>
+                                <div id="weekSchedule" class="space-y-4">
+                                    <!-- 周排班内容将通过JavaScript动态生成 -->
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 日视图 -->
+                        <div id="dayView" class="view-content hidden">
+                            <div class="bg-white dark:bg-ios-dark-gray rounded-ios p-4 shadow-ios mb-4">
+                                <h3 id="dayViewTitle" class="text-lg font-medium mb-4">今日排班</h3>
+                                <div id="daySchedule" class="space-y-4">
+                                    <!-- 日排班内容将通过JavaScript动态生成 -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 个人页面 -->
+                <div id="profilePage" class="page h-full flex flex-col">
+                    <!-- 个人信息卡片 -->
+                    <div class="bg-gradient-to-r from-primary to-secondary p-6 text-white">
+                        <div class="flex items-center space-x-4">
+                            <div class="w-20 h-20 rounded-full bg-white text-primary flex items-center justify-center text-3xl font-bold">
+                                张
+                            </div>
+                            <div>
+                                <h2 class="text-xl font-bold">张医生</h2>
+                                <p class="opacity-80">心内科 | 主治医师</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 统计信息 -->
+                    <div class="p-4 -mt-4">
+                        <div class="bg-white dark:bg-ios-dark-gray rounded-ios p-4 shadow-ios">
+                            <div class="grid grid-cols-3 gap-4 text-center">
+                                <div>
+                                    <p class="text-ios-gray text-sm">本月工时</p>
+                                    <p class="text-xl font-semibold">168h</p>
+                                </div>
+                                <div>
+                                    <p class="text-ios-gray text-sm">夜班次数</p>
+                                    <p class="text-xl font-semibold">4次</p>
+                                </div>
+                                <div>
+                                    <p class="text-ios-gray text-sm">调班申请</p>
+                                    <p class="text-xl font-semibold">1次</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 功能菜单 -->
+                    <div class="flex-1 overflow-auto p-4 bg-ios-light-gray dark:bg-dark">
+                        <div class="space-y-4">
+                            <!-- 个人排班统计 -->
+                            <div class="bg-white dark:bg-ios-dark-gray rounded-ios p-4 shadow-ios">
+                                <h3 class="text-lg font-medium mb-4">排班统计</h3>
+                                <canvas id="scheduleChart" height="200"></canvas>
+                            </div>
+                            
+                            <!-- 快捷功能 -->
+                            <div class="bg-white dark:bg-ios-dark-gray rounded-ios p-4 shadow-ios">
+                                <h3 class="text-lg font-medium mb-4">快捷功能</h3>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <button class="ios-button flex flex-col items-center justify-center p-4 bg-ios-light-gray dark:bg-dark rounded-ios">
+                                        <i class="fa fa-calendar-plus-o text-primary text-xl mb-2"></i>
+                                        <span class="text-sm">申请调班</span>
+                                    </button>
+                                    <button class="ios-button flex flex-col items-center justify-center p-4 bg-ios-light-gray dark:bg-dark rounded-ios">
+                                        <i class="fa fa-calendar-minus-o text-primary text-xl mb-2"></i>
+                                        <span class="text-sm">请假申请</span>
+                                    </button>
+                                    <button class="ios-button flex flex-col items-center justify-center p-4 bg-ios-light-gray dark:bg-dark rounded-ios">
+                                        <i class="fa fa-clock-o text-primary text-xl mb-2"></i>
+                                        <span class="text-sm">工时查询</span>
+                                    </button>
+                                    <button class="ios-button flex flex-col items-center justify-center p-4 bg-ios-light-gray dark:bg-dark rounded-ios">
+                                        <i class="fa fa-bell-o text-primary text-xl mb-2"></i>
+                                        <span class="text-sm">通知中心</span>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- 系统设置 -->
+                            <div class="bg-white dark:bg-ios-dark-gray rounded-ios p-4 shadow-ios">
+                                <h3 class="text-lg font-medium mb-4">系统设置</h3>
+                                <div class="space-y-4">
+                                    <div class="flex items-center justify-between">
+                                        <span>深色模式</span>
+                                        <label class="ios-switch">
+                                            <input type="checkbox" id="darkModeToggle">
+                                            <span class="ios-switch-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <span>推送通知</span>
+                                        <label class="ios-switch">
+                                            <input type="checkbox" checked>
+                                            <span class="ios-switch-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <span>声音提醒</span>
+                                        <label class="ios-switch">
+                                            <input type="checkbox" checked>
+                                            <span class="ios-switch-slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 团队页面 -->
+                <div id="teamPage" class="page h-full flex flex-col">
+                    <!-- 搜索栏 -->
+                    <div class="p-4 bg-white dark:bg-dark shadow-sm">
+                        <div class="relative">
+                            <input type="text" placeholder="搜索团队成员..." class="w-full pl-10 pr-4 py-2 bg-ios-light-gray dark:bg-ios-dark-gray rounded-ios-full">
+                            <i class="fa fa-search absolute left-4 top-1/2 transform -translate-y-1/2 text-ios-gray"></i>
+                        </div>
+                    </div>
+                    
+                    <!-- 团队成员列表 -->
+                    <div class="flex-1 overflow-auto p-4 bg-ios-light-gray dark:bg-dark">
+                        <div class="space-y-4">
+                            <!-- 科室筛选 -->
+                            <div class="bg-white dark:bg-ios-dark-gray rounded-ios p-4 shadow-ios">
+                                <h3 class="text-lg font-medium mb-4">科室筛选</h3>
+                                <div class="flex flex-wrap gap-2">
+                                    <button class="ios-button px-4 py-2 bg-primary text-white rounded-ios-full text-sm">全部</button>
+                                    <button class="ios-button px-4 py-2 bg-ios-light-gray dark:bg-dark text-dark dark:text-white rounded-ios-full text-sm">心内科</button>
+                                    <button class="ios-button px-4 py-2 bg-ios-light-gray dark:bg-dark text-dark dark:text-white rounded-ios-full text-sm">外科</button>
+                                    <button class="ios-button px-4 py-2 bg-ios-light-gray dark:bg-dark text-dark dark:text-white rounded-ios-full text-sm">儿科</button>
+                                    <button class="ios-button px-4 py-2 bg-ios-light-gray dark:bg-dark text-dark dark:text-white rounded-ios-full text-sm">妇产科</button>
+                                    <button class="ios-button px-4 py-2 bg-ios-light-gray dark:bg-dark text-dark dark:text-white rounded-ios-full text-sm">急诊科</button>
+                                </div>
+                            </div>
+                            
+                            <!-- 团队成员 -->
+                            <div class="bg-white dark:bg-ios-dark-gray rounded-ios p-4 shadow-ios">
+                                <h3 class="text-lg font-medium mb-4">团队成员</h3>
+                                <div class="space-y-4">
+                                    <!-- 成员1 -->
+                                    <div class="ios-card flex items-center justify-between p-3 bg-ios-light-gray dark:bg-dark rounded-ios">
+                                        <div class="flex items-center space-x-3">
+                                            <div class="w-12 h-12 rounded-full bg-primary text-white flex items-center justify-center text-lg font-bold">
+                                                张
+                                            </div>
+                                            <div>
+                                                <p class="font-medium">张医生</p>
+                                                <p class="text-sm text-ios-gray">心内科 | 主治医师</p>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center space-x-2">
+                                            <span class="shift-tag bg-success text-white">白班</span>
+                                            <button class="ios-button p-2 text-primary">
+                                                <i class="fa fa-chevron-right"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 成员2 -->
+                                    <div class="ios-card flex items-center justify-between p-3 bg-ios-light-gray dark:bg-dark rounded-ios">
+                                        <div class="flex items-center space-x-3">
+                                            <div class="w-12 h-12 rounded-full bg-secondary text-white flex items-center justify-center text-lg font-bold">
+                                                李
+                                            </div>
+                                            <div>
+                                                <p class="font-medium">李医生</p>
+                                                <p class="text-sm text-ios-gray">心内科 | 副主任医师</p>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center space-x-2">
+                                            <span class="shift-tag bg-warning text-white">夜班</span>
+                                            <button class="ios-button p-2 text-primary">
+                                                <i class="fa fa-chevron-right"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 成员3 -->
+                                    <div class="ios-card flex items-center justify-between p-3 bg-ios-light-gray dark:bg-dark rounded-ios">
+                                        <div class="flex items-center space-x-3">
+                                            <div class="w-12 h-12 rounded-full bg-info text-white flex items-center justify-center text-lg font-bold">
+                                                王
+                                            </div>
+                                            <div>
+                                                <p class="font-medium">王护士</p>
+                                                <p class="text-sm text-ios-gray">心内科 | 护士长</p>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center space-x-2">
+                                            <span class="shift-tag bg-primary text-white">早班</span>
+                                            <button class="ios-button p-2 text-primary">
+                                                <i class="fa fa-chevron-right"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 成员4 -->
+                                    <div class="ios-card flex items-center justify-between p-3 bg-ios-light-gray dark:bg-dark rounded-ios">
+                                        <div class="flex items-center space-x-3">
+                                            <div class="w-12 h-12 rounded-full bg-danger text-white flex items-center justify-center text-lg font-bold">
+                                                赵
+                                            </div>
+                                            <div>
+                                                <p class="font-medium">赵医生</p>
+                                                <p class="text-sm text-ios-gray">心内科 | 住院医师</p>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center space-x-2">
+                                            <span class="shift-tag bg-secondary text-white">晚班</span>
+                                            <button class="ios-button p-2 text-primary">
+                                                <i class="fa fa-chevron-right"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 申请页面 -->
+                <div id="requestPage" class="page h-full flex flex-col">
+                    <!-- 申请类型选择 -->
+                    <div class="p-4 bg-white dark:bg-dark shadow-sm">
+                        <div class="flex space-x-4">
+                            <button id="shiftChangeBtn" class="ios-button flex-1 py-3 bg-primary text-white rounded-ios">
+                                调班申请
+                            </button>
+                            <button id="leaveRequestBtn" class="ios-button flex-1 py-3 bg-ios-light-gray dark:bg-ios-dark-gray text-dark dark:text-white rounded-ios">
+                                请假申请
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 申请表单 -->
+                    <div class="flex-1 overflow-auto p-4 bg-ios-light-gray dark:bg-dark">
+                        <!-- 调班申请表单 -->
+                        <div id="shiftChangeForm" class="bg-white dark:bg-ios-dark-gray rounded-ios p-4 shadow-ios">
+                            <h3 class="text-lg font-medium mb-4">调班申请</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm text-ios-gray mb-1">原排班日期</label>
+                                    <input type="date" class="w-full p-3 bg-ios-light-gray dark:bg-dark rounded-ios ios-picker">
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-ios-gray mb-1">原排班班次</label>
+                                    <select class="w-full p-3 bg-ios-light-gray dark:bg-dark rounded-ios ios-picker">
+                                        <option>白班 (08:00-16:00)</option>
+                                        <option>晚班 (16:00-24:00)</option>
+                                        <option>夜班 (00:00-08:00)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-ios-gray mb-1">申请调至日期</label>
+                                    <input type="date" class="w-full p-3 bg-ios-light-gray dark:bg-dark rounded-ios ios-picker">
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-ios-gray mb-1">申请调至班次</label>
+                                    <select class="w-full p-3 bg-ios-light-gray dark:bg-dark rounded-ios ios-picker">
+                                        <option>白班 (08:00-16:00)</option>
+                                        <option>晚班 (16:00-24:00)</option>
+                                        <option>夜班 (00:00-08:00)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-ios-gray mb-1">调班原因</label>
+                                    <textarea class="w-full p-3 bg-ios-light-gray dark:bg-dark rounded-ios h-24" placeholder="请输入调班原因..."></textarea>
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-ios-gray mb-1">联系电话</label>
+                                    <input type="tel" class="w-full p-3 bg-ios-light-gray dark:bg-dark rounded-ios" placeholder="请输入联系电话">
+                                </div>
+                                <button class="ios-button w-full py-3 bg-primary text-white rounded-ios font-medium">
+                                    提交申请
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- 请假申请表单 -->
+                        <div id="leaveRequestForm" class="bg-white dark:bg-ios-dark-gray rounded-ios p-4 shadow-ios hidden">
+                            <h3 class="text-lg font-medium mb-4">请假申请</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm text-ios-gray mb-1">请假类型</label>
+                                    <select class="w-full p-3 bg-ios-light-gray dark:bg-dark rounded-ios ios-picker">
+                                        <option>年假</option>
+                                        <option>病假</option>
+                                        <option>事假</option>
+                                        <option>调休</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-ios-gray mb-1">开始日期</label>
+                                    <input type="date" class="w-full p-3 bg-ios-light-gray dark:bg-dark rounded-ios ios-picker">
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-ios-gray mb-1">结束日期</label>
+                                    <input type="date" class="w-full p-3 bg-ios-light-gray dark:bg-dark rounded-ios ios-picker">
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-ios-gray mb-1">请假天数</label>
+                                    <input type="text" class="w-full p-3 bg-ios-light-gray dark:bg-dark rounded-ios" value="1天" readonly>
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-ios-gray mb-1">请假原因</label>
+                                    <textarea class="w-full p-3 bg-ios-light-gray dark:bg-dark rounded-ios h-24" placeholder="请输入请假原因..."></textarea>
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-ios-gray mb-1">上传证明</label>
+                                    <button class="ios-button w-full p-3 bg-ios-light-gray dark:bg-dark rounded-ios text-primary flex items-center justify-center">
+                                        <i class="fa fa-cloud-upload mr-2"></i>
+                                        点击上传
+                                    </button>
+                                </div>
+                                <button class="ios-button w-full py-3 bg-primary text-white rounded-ios font-medium">
+                                    提交申请
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- 申请记录 -->
+                        <div class="bg-white dark:bg-ios-dark-gray rounded-ios p-4 shadow-ios mt-4">
+                            <h3 class="text-lg font-medium mb-4">申请记录</h3>
+                            <div class="space-y-4">
+                                <!-- 记录1 -->
+                                <div class="ios-card p-3 bg-ios-light-gray dark:bg-dark rounded-ios">
+                                    <div class="flex justify-between items-start">
+                                        <div>
+                                            <p class="font-medium">调班申请</p>
+                                            <p class="text-sm text-ios-gray">2025-07-15 白班 → 2025-07-16 白班</p>
+                                        </div>
+                                        <span class="px-2 py-1 bg-warning text-white text-xs rounded-ios-full">审核中</span>
+                                    </div>
+                                    <p class="text-sm mt-2">原因：家中有事需要处理</p>
+                                    <p class="text-xs text-ios-gray mt-2">提交时间：2025-07-10 14:30</p>
+                                </div>
+                                
+                                <!-- 记录2 -->
+                                <div class="ios-card p-3 bg-ios-light-gray dark:bg-dark rounded-ios">
+                                    <div class="flex justify-between items-start">
+                                        <div>
+                                            <p class="font-medium">请假申请</p>
+                                            <p class="text-sm text-ios-gray">2025-07-01 至 2025-07-03 (年假)</p>
+                                        </div>
+                                        <span class="px-2 py-1 bg-success text-white text-xs rounded-ios-full">已通过</span>
+                                    </div>
+                                    <p class="text-sm mt-2">原因：家庭度假</p>
+                                    <p class="text-xs text-ios-gray mt-2">提交时间：2025-06-20 09:15</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <!-- 底部导航栏 -->
+        <footer class="bg-white dark:bg-dark shadow-[0_-2px_10px_rgba(0,0,0,0.05)] ios-bottom-bar">
+            <div class="container mx-auto px-4 h-full">
+                <div class="flex items-center justify-around h-full">
+                    <button id="navScheduleBtn" class="nav-btn flex flex-col items-center justify-center text-primary">
+                        <i class="fa fa-calendar text-xl"></i>
+                        <span class="text-xs mt-1">排班表</span>
+                    </button>
+                    <button id="navTeamBtn" class="nav-btn flex flex-col items-center justify-center text-ios-gray">
+                        <i class="fa fa-users text-xl"></i>
+                        <span class="text-xs mt-1">团队</span>
+                    </button>
+                    <button id="navRequestBtn" class="nav-btn flex flex-col items-center justify-center text-ios-gray">
+                        <i class="fa fa-plus-circle text-xl"></i>
+                        <span class="text-xs mt-1">申请</span>
+                    </button>
+                    <button id="navProfileBtn" class="nav-btn flex flex-col items-center justify-center text-ios-gray">
+                        <i class="fa fa-user text-xl"></i>
+                        <span class="text-xs mt-1">我的</span>
+                    </button>
+                </div>
+            </div>
+        </footer>
+    </div>
+    
+    <!-- 通知弹窗 -->
+    <div id="notificationModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-start justify-center pt-20">
+        <div class="bg-white dark:bg-ios-dark-gray rounded-ios-lg w-11/12 max-w-md shadow-ios-elevated animate-slide-up">
+            <div class="p-4 border-b border-ios-light-gray dark:border-ios-dark-gray flex justify-between items-center">
+                <h3 class="text-lg font-medium">通知中心</h3>
+                <button id="closeNotificationBtn" class="ios-button p-2 text-ios-gray">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+            <div class="max-h-96 overflow-y-auto">
+                <div class="p-4 space-y-4">
+                    <!-- 通知1 -->
+                    <div class="ios-card p-3 bg-ios-light-gray dark:bg-dark rounded-ios">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="font-medium">调班申请已通过</p>
+                                <p class="text-sm text-ios-gray">您的7月15日调班申请已通过审核</p>
+                            </div>
+                            <span class="text-xs text-ios-gray">10分钟前</span>
+                        </div>
+                    </div>
+                    
+                    <!-- 通知2 -->
+                    <div class="ios-card p-3 bg-ios-light-gray dark:bg-dark rounded-ios">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="font-medium">新排班已发布</p>
+                                <p class="text-sm text-ios-gray">8月份排班表已更新，请及时查看</p>
+                            </div>
+                            <span class="text-xs text-ios-gray">昨天</span>
+                        </div>
+                    </div>
+                    
+                    <!-- 通知3 -->
+                    <div class="ios-card p-3 bg-ios-light-gray dark:bg-dark rounded-ios">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="font-medium">会议提醒</p>
+                                <p class="text-sm text-ios-gray">今天下午3点在会议室召开科室会议</p>
+                            </div>
+                            <span class="text-xs text-ios-gray">昨天</span>
+                        </div>
+                    </div>
+                    
+                    <!-- 通知4 -->
+                    <div class="ios-card p-3 bg-ios-light-gray dark:bg-dark rounded-ios">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="font-medium">系统更新</p>
+                                <p class="text-sm text-ios-gray">系统已更新至最新版本，新增智能排班功能</p>
+                            </div>
+                            <span class="text-xs text-ios-gray">3天前</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 border-t border-ios-light-gray dark:border-ios-dark-gray">
+                <button class="ios-button w-full py-2 text-primary text-center">
+                    全部标记为已读
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 设置弹窗 -->
+    <div id="settingsModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-start justify-center pt-20">
+        <div class="bg-white dark:bg-ios-dark-gray rounded-ios-lg w-11/12 max-w-md shadow-ios-elevated animate-slide-up">
+            <div class="p-4 border-b border-ios-light-gray dark:border-ios-dark-gray flex justify-between items-center">
+                <h3 class="text-lg font-medium">系统设置</h3>
+                <button id="closeSettingsBtn" class="ios-button p-2 text-ios-gray">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+            <div class="p-4 space-y-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="font-medium">深色模式</p>
+                        <p class="text-sm text-ios-gray">切换应用主题</p>
+                    </div>
+                    <label class="ios-switch">
+                        <input type="checkbox" id="settingsDarkModeToggle">
+                        <span class="ios-switch-slider"></span>
+                    </label>
+                </div>
+                
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="font-medium">推送通知</p>
+                        <p class="text-sm text-ios-gray">接收排班变更和系统通知</p>
+                    </div>
+                    <label class="ios-switch">
+                        <input type="checkbox" checked>
+                        <span class="ios-switch-slider"></span>
+                    </label>
+                </div>
+                
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="font-medium">声音提醒</p>
+                        <p class="text-sm text-ios-gray">收到通知时播放声音</p>
+                    </div>
+                    <label class="ios-switch">
+                        <input type="checkbox" checked>
+                        <span class="ios-switch-slider"></span>
+                    </label>
+                </div>
+                
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="font-medium">震动提醒</p>
+                        <p class="text-sm text-ios-gray">收到通知时震动</p>
+                    </div>
+                    <label class="ios-switch">
+                        <input type="checkbox" checked>
+                        <span class="ios-switch-slider"></span>
+                    </label>
+                </div>
+                
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="font-medium">自动更新</p>
+                        <p class="text-sm text-ios-gray">自动下载并安装更新</p>
+                    </div>
+                    <label class="ios-switch">
+                        <input type="checkbox" checked>
+                        <span class="ios-switch-slider"></span>
+                    </label>
+                </div>
+                
+                <div class="pt-4 border-t border-ios-light-gray dark:border-ios-dark-gray">
+                    <p class="font-medium mb-2">关于</p>
+                    <p class="text-sm text-ios-gray">爱轮班 v1.0.0</p>
+                    <p class="text-sm text-ios-gray mt-1">© 2025 爱轮班团队 保留所有权利</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- JavaScript -->
+    <script>
+        // 模拟数据
+        const mockData = {
+            // 当前用户信息
+            currentUser: {
+                name: '张医生',
+                department: '心内科',
+                title: '主治医师',
+                avatar: '张',
+                monthlyHours: 168,
+                nightShifts: 4,
+                shiftChangeRequests: 1
+            },
+            
+            // 团队成员
+            teamMembers: [
+                { id: 1, name: '张医生', department: '心内科', title: '主治医师', avatar: '张', currentShift: { type: '白班', time: '08:00-16:00', color: 'success' } },
+                { id: 2, name: '李医生', department: '心内科', title: '副主任医师', avatar: '李', currentShift: { type: '夜班', time: '00:00-08:00', color: 'warning' } },
+                { id: 3, name: '王护士', department: '心内科', title: '护士长', avatar: '王', currentShift: { type: '早班', time: '06:00-14:00', color: 'primary' } },
+                { id: 4, name: '赵医生', department: '心内科', title: '住院医师', avatar: '赵', currentShift: { type: '晚班', time: '16:00-24:00', color: 'secondary' } }
+            ],
+            
+            // 排班数据
+            schedule: {
+                // 按月份存储排班数据
+                '2025-07': {
+                    // 按日期存储排班数据
+                    '2025-07-01': [
+                        { id: 1, staffId: 1, staffName: '张医生', shift: { type: '白班', time: '08:00-16:00', color: 'success' } },
+                        { id: 2, staffId: 2, staffName: '李医生', shift: { type: '夜班', time: '00:00-08:00', color: 'warning' } },
+                        { id: 3, staffId: 3, staffName: '王护士', shift: { type: '早班', time: '06:00-14:00', color: 'primary' } }
+                    ],
+                    '2025-07-02': [
+                        { id: 4, staffId: 1, staffName: '张医生', shift: { type: '晚班', time: '16:00-24:00', color: 'secondary' } },
+                        { id: 5, staffId: 4, staffName: '赵医生', shift: { type: '白班', time: '08:00-16:00', color: 'success' } },
+                        { id: 6, staffId: 3, staffName: '王护士', shift: { type: '晚班', time: '16:00-24:00', color: 'secondary' } }
+                    ],
+                    '2025-07-03': [
+                        { id: 7, staffId: 1, staffName: '张医生', shift: { type: '夜班', time: '00:00-08:00', color: 'warning' } },
+                        { id: 8, staffId: 2, staffName: '李医生', shift: { type: '白班', time: '08:00-16:00', color: 'success' } },
+                        { id: 9, staffId: 4, staffName: '赵医生', shift: { type: '早班', time: '06:00-14:00', color: 'primary' } }
+                    ],
+                    // 更多日期的排班数据...
+                    '2025-07-15': [
+                        { id: 10, staffId: 1, staffName: '张医生', shift: { type: '白班', time: '08:00-16:00', color: 'success' } },
+                        { id: 11, staffId: 2, staffName: '李医生', shift: { type: '晚班', time: '16:00-24:00', color: 'secondary' } }
+                    ],
+                    '2025-07-16': [
+                        { id: 12, staffId: 1, staffName: '张医生', shift: { type: '休息', time: '', color: 'ios-gray' } },
+                        { id: 13, staffId: 2, staffName: '李医生', shift: { type: '白班', time: '08:00-16:00', color: 'success' } }
+                    ]
+                }
+            },
+            
+            // 申请记录
+            requests: [
+                { id: 1, type: '调班', originalDate: '2025-07-15', originalShift: '白班 (08:00-16:00)', targetDate: '2025-07-16', targetShift: '白班 (08:00-16:00)', reason: '家中有事需要处理', status: '审核中', submitTime: '2025-07-10 14:30' },
+                { id: 2, type: '请假', leaveType: '年假', startDate: '2025-07-01', endDate: '2025-07-03', days: 3, reason: '家庭度假', status: '已通过', submitTime: '2025-06-20 09:15' }
+            ],
+            
+            // 通知
+            notifications: [
+                { id: 1, title: '调班申请已通过', content: '您的7月15日调班申请已通过审核', time: '10分钟前' },
+                { id: 2, title: '新排班已发布', content: '8月份排班表已更新，请及时查看', time: '昨天' },
+                { id: 3, title: '会议提醒', content: '今天下午3点在会议室召开科室会议', time: '昨天' },
+                { id: 4, title: '系统更新', content: '系统已更新至最新版本，新增智能排班功能', time: '3天前' }
+            ],
+            
+            // 统计数据
+            statistics: {
+                monthlyShifts: {
+                    labels: ['白班', '晚班', '夜班', '早班', '休息'],
+                    data: [15, 8, 4, 3, 0]
+                }
+            }
+        };
+        
+        // 当前日期和视图状态
+        let currentDate = new Date();
+        let currentView = 'month'; // 'month', 'week', 'day'
+        let currentMonth = currentDate.getMonth();
+        let currentYear = currentDate.getFullYear();
+        
+        // DOM 加载完成后执行
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化页面
+            initCalendar();
+            initWeekView();
+            initDayView();
+            initChart();
+            setupEventListeners();
+            
+            // 检查系统主题偏好
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                document.documentElement.classList.add('dark');
+                document.getElementById('darkModeToggle').checked = true;
+                document.getElementById('settingsDarkModeToggle').checked = true;
+            }
+        });
+        
+        // 初始化日历
+        function initCalendar() {
+            const monthGrid = document.getElementById('monthGrid');
+            monthGrid.innerHTML = '';
+            
+            // 更新当前日期显示
+            document.getElementById('currentDateDisplay').textContent = `${currentYear}年${currentMonth + 1}月`;
+            
+            // 获取当月第一天是星期几
+            const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+            
+            // 获取当月的天数
+            const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+            
+            // 添加上个月的日期占位符
+            for (let i = 0; i < firstDay; i++) {
+                const emptyDay = document.createElement('div');
+                emptyDay.className = 'h-24 p-1';
+                monthGrid.appendChild(emptyDay);
+            }
+            
+            // 添加当月的日期
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateCell = document.createElement('div');
+                dateCell.className = 'h-24 p-1';
+                
+                const dateString = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const isToday = dateString === formatDate(currentDate);
+                const isCurrentMonth = currentMonth === new Date().getMonth() && currentYear === new Date().getFullYear();
+                const isFuture = new Date(dateString) > new Date();
+                
+                dateCell.innerHTML = `
+                    <div class="h-full flex flex-col">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="${isToday ? 'bg-primary text-white rounded-full w-6 h-6 flex items-center justify-center' : ''}">${day}</span>
+                            ${isFuture && isCurrentMonth ? '<span class="text-xs text-success">未来</span>' : ''}
+                        </div>
+                        <div class="flex-1 space-y-1 overflow-hidden">
+                            ${renderDaySchedule(dateString)}
+                        </div>
+                    </div>
+                `;
+                
+                // 添加点击事件
+                dateCell.addEventListener('click', () => {
+                    // 切换到日视图并显示选中日期的排班
+                    switchView('day');
+                    currentDate = new Date(dateString);
+                    initDayView();
+                });
+                
+                monthGrid.appendChild(dateCell);
+            }
+        }
+        
+        // 渲染单日排班
+        function renderDaySchedule(dateString) {
+            const monthKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+            const daySchedule = mockData.schedule[monthKey] && mockData.schedule[monthKey][dateString] || [];
+            
+            if (daySchedule.length === 0) {
+                return '<div class="text-xs text-ios-gray text-center py-1">无排班</div>';
+            }
+            
+            return daySchedule.map(item => {
+                if (item.shift.type === '休息') {
+                    return `<div class="text-xs text-ios-gray text-center py-1">${item.shift.type}</div>`;
+                }
+                return `<div class="text-xs text-white bg-${item.shift.color} rounded px-1 py-0.5 truncate">${item.staffName}: ${item.shift.type}</div>`;
+            }).join('');
+        }
+        
+        // 初始化周视图
+        function initWeekView() {
+            const weekSchedule = document.getElementById('weekSchedule');
+            weekSchedule.innerHTML = '';
+            
+            // 获取本周的日期范围
+            const startOfWeek = new Date(currentDate);
+            const day = startOfWeek.getDay();
+            const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1); // 调整到周一
+            startOfWeek.setDate(diff);
+            
+            // 生成一周的排班
+            for (let i = 0; i < 7; i++) {
+                const currentDay = new Date(startOfWeek);
+                currentDay.setDate(startOfWeek.getDate() + i);
+                
+                const dateString = formatDate(currentDay);
+                const monthKey = `${currentDay.getFullYear()}-${String(currentDay.getMonth() + 1).padStart(2, '0')}`;
+                const daySchedule = mockData.schedule[monthKey] && mockData.schedule[monthKey][dateString] || [];
+                
+                const dayElement = document.createElement('div');
+                dayElement.className = 'border-b border-ios-light-gray dark:border-ios-dark-gray pb-4 last:border-0 last:pb-0';
+                
+                const weekDayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+                const isToday = dateString === formatDate(new Date());
+                
+                dayElement.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <div>
+                            <h4 class="font-medium">${weekDayNames[currentDay.getDay()]}</h4>
+                            <p class="text-sm text-ios-gray">${currentDay.getMonth() + 1}月${currentDay.getDate()}日</p>
+                        </div>
+                        ${isToday ? '<span class="px-2 py-0.5 bg-primary text-white text-xs rounded-ios-full">今天</span>' : ''}
+                    </div>
+                    <div class="space-y-2">
+                        ${daySchedule.length === 0 ? 
+                            '<div class="text-sm text-ios-gray text-center py-2">无排班</div>' : 
+                            daySchedule.map(item => `
+                                <div class="flex items-center justify-between p-2 bg-ios-light-gray dark:bg-dark rounded-ios">
+                                    <div class="flex items-center space-x-2">
+                                        <div class="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold">
+                                            ${item.staffName.charAt(0)}
+                                        </div>
+                                        <div>
+                                            <p class="font-medium">${item.staffName}</p>
+                                            <p class="text-xs text-ios-gray">${item.shift.time}</p>
+                                        </div>
+                                    </div>
+                                    <span class="shift-tag bg-${item.shift.color} text-white">${item.shift.type}</span>
+                                </div>
+                            `).join('')
+                        }
+                    </div>
+                `;
+                
+                weekSchedule.appendChild(dayElement);
+            }
+        }
+        
+        // 初始化日视图
+        function initDayView() {
+            const dayViewTitle = document.getElementById('dayViewTitle');
+            const daySchedule = document.getElementById('daySchedule');
+            
+            // 更新标题
+            const weekDayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+            dayViewTitle.textContent = `${weekDayNames[currentDate.getDay()]} ${currentDate.getMonth() + 1}月${currentDate.getDate()}日 排班`;
+            
+            // 获取当天排班
+            const dateString = formatDate(currentDate);
+            const monthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+            const schedule = mockData.schedule[monthKey] && mockData.schedule[monthKey][dateString] || [];
+            
+            daySchedule.innerHTML = '';
+            
+            if (schedule.length === 0) {
+                daySchedule.innerHTML = '<div class="text-center py-8 text-ios-gray">今日无排班</div>';
+                return;
+            }
+            
+            // 按时间排序
+            schedule.sort((a, b) => {
+                if (a.shift.type === '休息') return 1;
+                if (b.shift.type === '休息') return -1;
+                
+                const timeA = a.shift.time.split('-')[0];
+                const timeB = b.shift.time.split('-')[0];
+                return timeA.localeCompare(timeB);
+            });
+            
+            // 生成时间段
+            const timeSlots = [];
+            for (let hour = 0; hour < 24; hour++) {
+                timeSlots.push(`${String(hour).padStart(2, '0')}:00`);
+            }
+            
+            // 创建时间轴
+            const timeline = document.createElement('div');
+            timeline.className = 'relative';
+            
+            // 添加时间刻度
+            timeSlots.forEach((time, index) => {
+                const timeSlot = document.createElement('div');
+                timeSlot.className = 'absolute left-0 top-0 w-full h-12 border-b border-ios-light-gray dark:border-ios-dark-gray';
+                timeSlot.style.top = `${index * 48}px`;
+                
+                timeSlot.innerHTML = `
+                    <div class="flex">
+                        <div class="w-16 text-right pr-2 text-xs text-ios-gray pt-1">${time}</div>
+                        <div class="flex-1"></div>
+                    </div>
+                `;
+                
+                timeline.appendChild(timeSlot);
+            });
+            
+            // 添加排班块
+            schedule.forEach(item => {
+                if (item.shift.type === '休息') {
+                    return;
+                }
+                
+                const [startTime, endTime] = item.shift.time.split('-');
+                const [startHour, startMinute] = startTime.split(':').map(Number);
+                const [endHour, endMinute] = endTime.split(':').map(Number);
+                
+                const startPosition = startHour + startMinute / 60;
+                const endPosition = endHour + endMinute / 60;
+                const duration = endPosition - startPosition;
+                
+                const shiftBlock = document.createElement('div');
+                shiftBlock.className = `absolute left-16 right-0 bg-${item.shift.color} text-white rounded-ios p-2 m-1 shadow-sm`;
+                shiftBlock.style.top = `${startPosition * 48}px`;
+                shiftBlock.style.height = `${duration * 48}px`;
+                
+                shiftBlock.innerHTML = `
+                    <div class="font-medium">${item.staffName}</div>
+                    <div class="text-xs">${item.shift.type} (${item.shift.time})</div>
+                `;
+                
+                timeline.appendChild(shiftBlock);
+            });
+            
+            // 设置时间轴高度
+            timeline.style.height = `${24 * 48}px`;
+            
+            daySchedule.appendChild(timeline);
+        }
+        
+        // 初始化图表
+        function initChart() {
+            const ctx = document.getElementById('scheduleChart').getContext('2d');
+            
+            // 检查是否已经存在图表实例
+            if (window.scheduleChartInstance) {
+                window.scheduleChartInstance.destroy();
+            }
+            
+            window.scheduleChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: mockData.statistics.monthlyShifts.labels,
+                    datasets: [{
+                        data: mockData.statistics.monthlyShifts.data,
+                        backgroundColor: [
+                            '#34C759', // 白班 - success
+                            '#5856D6', // 晚班 - secondary
+                            '#FF9500', // 夜班 - warning
+                            '#007AFF', // 早班 - primary
+                            '#8E8E93'  // 休息 - ios-gray
+                        ],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 20,
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        }
+                    },
+                    cutout: '70%'
+                }
+            });
+        }
+        
+        // 设置事件监听器
+        function setupEventListeners() {
+            // 视图切换
+            document.getElementById('viewMonthBtn').addEventListener('click', () => switchView('month'));
+            document.getElementById('viewWeekBtn').addEventListener('click', () => switchView('week'));
+            document.getElementById('viewDayBtn').addEventListener('click', () => switchView('day'));
+            
+            // 月份切换
+            document.getElementById('prevMonthBtn').addEventListener('click', () => {
+                currentMonth--;
+                if (currentMonth < 0) {
+                    currentMonth = 11;
+                    currentYear--;
+                }
+                initCalendar();
+            });
+            
+            document.getElementById('nextMonthBtn').addEventListener('click', () => {
+                currentMonth++;
+                if (currentMonth > 11) {
+                    currentMonth = 0;
+                    currentYear++;
+                }
+                initCalendar();
+            });
+            
+            // 回到今天
+            document.getElementById('todayBtn').addEventListener('click', () => {
+                currentDate = new Date();
+                currentMonth = currentDate.getMonth();
+                currentYear = currentDate.getFullYear();
+                
+                switch (currentView) {
+                    case 'month':
+                        initCalendar();
+                        break;
+                    case 'week':
+                        initWeekView();
+                        break;
+                    case 'day':
+                        initDayView();
+                        break;
+                }
+            });
+            
+            // 底部导航
+            document.getElementById('navScheduleBtn').addEventListener('click', () => switchPage('schedulePage'));
+            document.getElementById('navTeamBtn').addEventListener('click', () => switchPage('teamPage'));
+            document.getElementById('navRequestBtn').addEventListener('click', () => switchPage('requestPage'));
+            document.getElementById('navProfileBtn').addEventListener('click', () => switchPage('profilePage'));
+            
+            // 申请类型切换
+            document.getElementById('shiftChangeBtn').addEventListener('click', () => {
+                document.getElementById('shiftChangeBtn').classList.add('bg-primary', 'text-white');
+                document.getElementById('shiftChangeBtn').classList.remove('bg-ios-light-gray', 'dark:bg-ios-dark-gray', 'text-dark', 'dark:text-white');
+                
+                document.getElementById('leaveRequestBtn').classList.remove('bg-primary', 'text-white');
+                document.getElementById('leaveRequestBtn').classList.add('bg-ios-light-gray', 'dark:bg-ios-dark-gray', 'text-dark', 'dark:text-white');
+                
+                document.getElementById('shiftChangeForm').classList.remove('hidden');
+                document.getElementById('leaveRequestForm').classList.add('hidden');
+            });
+            
+            document.getElementById('leaveRequestBtn').addEventListener('click', () => {
+                document.getElementById('leaveRequestBtn').classList.add('bg-primary', 'text-white');
+                document.getElementById('leaveRequestBtn').classList.remove('bg-ios-light-gray', 'dark:bg-ios-dark-gray', 'text-dark', 'dark:text-white');
+                
+                document.getElementById('shiftChangeBtn').classList.remove('bg-primary', 'text-white');
+                document.getElementById('shiftChangeBtn').classList.add('bg-ios-light-gray', 'dark:bg-ios-dark-gray', 'text-dark', 'dark:text-white');
+                
+                document.getElementById('leaveRequestForm').classList.remove('hidden');
+                document.getElementById('shiftChangeForm').classList.add('hidden');
+            });
+            
+            // 通知弹窗
+            document.getElementById('notificationBtn').addEventListener('click', () => {
+                document.getElementById('notificationModal').classList.remove('hidden');
+            });
+            
+            document.getElementById('closeNotificationBtn').addEventListener('click', () => {
+                document.getElementById('notificationModal').classList.add('hidden');
+            });
+            
+            // 设置弹窗
+            document.getElementById('settingsBtn').addEventListener('click', () => {
+                document.getElementById('settingsModal').classList.remove('hidden');
+            });
+            
+            document.getElementById('closeSettingsBtn').addEventListener('click', () => {
+                document.getElementById('settingsModal').classList.add('hidden');
+            });
+            
+            // 深色模式切换
+            document.getElementById('darkModeToggle').addEventListener('change', toggleDarkMode);
+            document.getElementById('settingsDarkModeToggle').addEventListener('change', toggleDarkMode);
+            
+            // 点击模态框背景关闭
+            document.getElementById('notificationModal').addEventListener('click', (e) => {
+                if (e.target === document.getElementById('notificationModal')) {
+                    document.getElementById('notificationModal').classList.add('hidden');
+                }
+            });
+            
+            document.getElementById('settingsModal').addEventListener('click', (e) => {
+                if (e.target === document.getElementById('settingsModal')) {
+                    document.getElementById('settingsModal').classList.add('hidden');
+                }
+            });
+        }
+        
+        // 切换视图
+        function switchView(view) {
+            currentView = view;
+            
+            // 更新按钮样式
+            document.getElementById('viewMonthBtn').classList.remove('bg-primary', 'text-white');
+            document.getElementById('viewWeekBtn').classList.remove('bg-primary', 'text-white');
+            document.getElementById('viewDayBtn').classList.remove('bg-primary', 'text-white');
+            
+            document.getElementById('viewMonthBtn').classList.add('bg-ios-light-gray', 'dark:bg-ios-dark-gray', 'text-dark', 'dark:text-white');
+            document.getElementById('viewWeekBtn').classList.add('bg-ios-light-gray', 'dark:bg-ios-dark-gray', 'text-dark', 'dark:text-white');
+            document.getElementById('viewDayBtn').classList.add('bg-ios-light-gray', 'dark:bg-ios-dark-gray', 'text-dark', 'dark:text-white');
+            
+            document.getElementById(`view${view.charAt(0).toUpperCase() + view.slice(1)}Btn`).classList.remove('bg-ios-light-gray', 'dark:bg-ios-dark-gray', 'text-dark', 'dark:text-white');
+            document.getElementById(`view${view.charAt(0).toUpperCase() + view.slice(1)}Btn`).classList.add('bg-primary', 'text-white');
+            
+            // 显示对应视图
+            document.getElementById('monthView').classList.add('hidden');
+            document.getElementById('weekView').classList.add('hidden');
+            document.getElementById('dayView').classList.add('hidden');
+            
+            document.getElementById(`${view}View`).classList.remove('hidden');
+            
+            // 初始化视图
+            switch (view) {
+                case 'month':
+                    initCalendar();
+                    break;
+                case 'week':
+                    initWeekView();
+                    break;
+                case 'day':
+                    initDayView();
+                    break;
+            }
+        }
+        
+        // 切换页面
+        function switchPage(pageId) {
+            // 更新底部导航样式
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('text-primary');
+                btn.classList.add('text-ios-gray');
+            });
+            
+            const navId = pageId.replace('Page', 'Btn');
+            document.getElementById(`nav${navId.charAt(0).toUpperCase() + navId.slice(1)}`).classList.remove('text-ios-gray');
+            document.getElementById(`nav${navId.charAt(0).toUpperCase() + navId.slice(1)}`).classList.add('text-primary');
+            
+            // 显示对应页面
+            document.querySelectorAll('.page').forEach(page => {
+                page.classList.remove('active');
+            });
+            
+            document.getElementById(pageId).classList.add('active');
+            
+            // 如果切换到个人页面，重新初始化图表
+            if (pageId === 'profilePage') {
+                initChart();
+            }
+        }
+        
+        // 切换深色模式
+        function toggleDarkMode() {
+            const isDarkMode = document.getElementById('darkModeToggle').checked;
+            
+            if (isDarkMode) {
+                document.documentElement.classList.add('dark');
+                document.getElementById('settingsDarkModeToggle').checked = true;
+            } else {
+                document.documentElement.classList.remove('dark');
+                document.getElementById('settingsDarkModeToggle').checked = false;
+            }
+            
+            // 重新初始化图表以适应新主题
+            if (document.getElementById('scheduleChart')) {
+                initChart();
+            }
+        }
+        
+        // 格式化日期为 YYYY-MM-DD
+        function formatDate(date) {
+            return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        }
+    </script>
+</body>
+</html>
